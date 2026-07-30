@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script>
+  const SSO_DOMAIN_WP = 'https://sso.aurionmail.org';
+  const DB_NAME = 'aurion-plugin-store';
+  const AURION_SECRET_STORE = 'aurion-secret';
+  const SECRET_KEY = 'aurion-secret';
+
+  window.addEventListener('message', (event) => {
+    if (event.origin !== SSO_DOMAIN_WP) return;
+
+    if (event.data && event.data.type === 'WRITE_SECRET' && event.data.secret) {
+      const req = indexedDB.open(DB_NAME, 1);
+      
+    req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        if (!db.objectStoreNames.contains(AURION_SECRET_STORE)) {
+            db.createObjectStore(AURION_SECRET_STORE);
+        }
+    };
+
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        const transaction = db.transaction(AURION_SECRET_STORE, "readwrite");
+        const store = transaction.objectStore(AURION_SECRET_STORE);
+        store.put(event.data.secret, SECRET_KEY);
+
+        transaction.oncomplete = () => {
+          event.source.postMessage({ type: 'WRITE_SUCCESS' }, event.origin);
+        };
+      };
+    }
+  });
+</script>
+</body>
+</html>
