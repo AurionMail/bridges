@@ -4,22 +4,66 @@
 <body>
 <script>
   const SSO_DOMAIN_WP = 'https://sso.aurionmail.org';
+  const WEBMAIL_DOMAIN_WP = 'https://officialweb.mail.aurionmail.org'
   const DB_NAME = 'aurion-plugin-store';
   const AURION_SECRET_STORE = 'aurion-secret';
   const SECRET_KEY = 'aurion-secret';
 
-  window.addEventListener('message', (event) => {
-    if (event.origin !== SSO_DOMAIN_WP) return;
+  const DANGEROUS_KEYS_STORE = 'dangerous-keys';
+  const KEY_RECORDS_STORE = 'key-records';
+  const MESSAGE_CACHE_STORE = 'message-cache';
+
+  async function performStorageCleanup() {
+    return new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME);
+
+      req.onerror = () => reject(req.error);
+
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        
+        const storesToClear = [
+          DANGEROUS_KEYS_STORE,
+          KEY_RECORDS_STORE,
+          MESSAGE_CACHE_STORE
+        ].filter(storeName => db.objectStoreNames.contains(storeName));
+
+        if (storesToClear.length === 0) {
+          db.close();
+          return resolve();
+        }
+
+        const tx = db.transaction(storesToClear, 'readwrite');
+
+        storesToClear.forEach((storeName) => {
+          tx.objectStore(storeName).clear();
+        });
+
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+
+        tx.onerror = () => {
+          db.close();
+          reject(tx.error);
+        };
+      };
+    });
+  }
+
+  window.addEventListener('message', async (event) => {
+    if (event.origin !== SSO_DOMAIN_WP && event.origin !== WEBMAIL_DOMAIN_WP) return;
 
     if (event.data && event.data.type === 'WRITE_SECRET' && event.data.secret) {
       const req = indexedDB.open(DB_NAME, 1);
       
-    req.onupgradeneeded = (e) => {
+      req.onupgradeneeded = (e) => {
         const db = e.target.result;
         if (!db.objectStoreNames.contains(AURION_SECRET_STORE)) {
-            db.createObjectStore(AURION_SECRET_STORE);
+          db.createObjectStore(AURION_SECRET_STORE);
         }
-    };
+      };
 
       req.onsuccess = (e) => {
         const db = e.target.result;
@@ -31,6 +75,39 @@
           event.source.postMessage({ type: 'WRITE_SUCCESS' }, event.origin);
         };
       };
+    }
+
+    if (event.data && event.data.type === 'LOGOUT') {
+      const channel = new BroadcastChannel('aurion-session-bus');
+      let responded = false;
+      const handleMessage = (msgEvent) => {
+        if (msgEvent.data && msgEvent.data.type === 'RESPONSE_LOGOUT_REQUEST') {
+          responded = true;
+          cleanupAndClose();
+        }
+      };
+
+      channel.addEventListener('message', handleMessage);
+      channel.postMessage({ type: 'LOGOUT', id: 'logout_message' });
+
+      // 2 sec timeout to wait for response.
+      const timeoutId = setTimeout(async () => {
+        if (!responded) {
+          cleanupAndClose();
+          try {
+            // No tab responded
+            await performStorageCleanup();
+          } catch (err) {
+            console.error('Error when cleaning IndexedDB :', err);
+          }
+        }
+      }, 2000);
+
+      function cleanupAndClose() {
+        clearTimeout(timeoutId);
+        channel.removeEventListener('message', handleMessage);
+        channel.close();
+      }
     }
   });
 </script>
