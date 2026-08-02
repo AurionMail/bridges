@@ -4,7 +4,7 @@
 <body>
 <script>
   const SSO_DOMAIN_WP = 'https://sso.aurionmail.org';
-  const WEBMAIL_DOMAIN_WP = 'https://officialweb.mail.aurionmail.org'
+  const WEBMAIL_DOMAIN_WP = 'https://officialweb.mail.aurionmail.org';
   const DB_NAME = 'aurion-plugin-store';
   const AURION_SECRET_STORE = 'aurion-secret';
   const SECRET_KEY = 'aurion-secret';
@@ -80,28 +80,36 @@
     if (event.data && event.data.type === 'LOGOUT') {
       const channel = new BroadcastChannel('aurion-session-bus');
       let responded = false;
+      const callerSource = event.source;
+      const callerOrigin = event.origin;
+
       const handleMessage = (msgEvent) => {
         if (msgEvent.data && msgEvent.data.type === 'RESPONSE_LOGOUT_REQUEST') {
           responded = true;
           cleanupAndClose();
+          // Réponse immédiate au parent : un onglet actif a pris en charge le logout
+          callerSource.postMessage({ type: 'LOGOUT_SUCCESS' }, callerOrigin);
         }
       };
 
       channel.addEventListener('message', handleMessage);
       channel.postMessage({ type: 'LOGOUT', id: 'logout_message' });
 
-      // 2 sec timeout to wait for response.
+      // Timeout de 1 sec max si aucun onglet webmail n'est ouvert
       const timeoutId = setTimeout(async () => {
         if (!responded) {
           cleanupAndClose();
           try {
-            // No tab responded
+            // Aucun onglet n'a répondu : nettoyage manuel
             await performStorageCleanup();
           } catch (err) {
             console.error('Error when cleaning IndexedDB :', err);
+          } finally {
+            // Réponse au parent une fois le nettoyage terminé
+            callerSource.postMessage({ type: 'LOGOUT_SUCCESS' }, callerOrigin);
           }
         }
-      }, 2000);
+      }, 1500);
 
       function cleanupAndClose() {
         clearTimeout(timeoutId);
