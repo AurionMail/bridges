@@ -82,30 +82,36 @@
       let responded = false;
       const callerSource = event.source;
       const callerOrigin = event.origin;
+      const requestId = Math.random().toString(36).substring(2);
 
       const handleMessage = (msgEvent) => {
-        if (msgEvent.data && msgEvent.data.type === 'RESPONSE_LOGOUT_REQUEST') {
+        // Vérification du type ET de l'ID de requête
+        if (
+          msgEvent.data && 
+          msgEvent.data.type === 'RESPONSE_LOGOUT_REQUEST' && 
+          msgEvent.data.requestId === requestId
+        ) {
           responded = true;
           cleanupAndClose();
-          // Réponse immédiate au parent : un onglet actif a pris en charge le logout
           callerSource.postMessage({ type: 'LOGOUT_SUCCESS' }, callerOrigin);
         }
       };
 
       channel.addEventListener('message', handleMessage);
-      channel.postMessage({ type: 'LOGOUT', id: 'logout_message' });
 
-      // Timeout de 1 sec max si aucun onglet webmail n'est ouvert
+      channel.postMessage({ 
+        type: 'LOGOUT_REQUEST', 
+        requestId: requestId 
+      });
+
       const timeoutId = setTimeout(async () => {
         if (!responded) {
           cleanupAndClose();
           try {
-            // Aucun onglet n'a répondu : nettoyage manuel
             await performStorageCleanup();
           } catch (err) {
             console.error('Error when cleaning IndexedDB :', err);
           } finally {
-            // Réponse au parent une fois le nettoyage terminé
             callerSource.postMessage({ type: 'LOGOUT_SUCCESS' }, callerOrigin);
           }
         }
