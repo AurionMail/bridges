@@ -3,8 +3,8 @@
 <head><meta charset="utf-8"></head>
 <body>
 <script>
-  const SSO_DOMAIN_WP = 'https://sso.aurionmail.org';
-  const WEBMAIL_DOMAIN_WP = 'https://officialweb.mail.aurionmail.org';
+  const SSO_ORIGIN = '<!-- INSERT SSO ORIGIN HERE -->';
+  const WEBMAIL_ORIGIN = '<!-- INSERT WEBMAIL ORIGIN HERE -->';
   const DB_NAME = 'aurion-plugin-store';
   const AURION_SECRET_STORE = 'aurion-secret';
   const SECRET_KEY = 'aurion-secret';
@@ -53,7 +53,7 @@
   }
 
   window.addEventListener('message', async (event) => {
-    if (event.origin !== SSO_DOMAIN_WP && event.origin !== WEBMAIL_DOMAIN_WP) return;
+    if (event.origin !== SSO_ORIGIN && event.origin !== WEBMAIL_ORIGIN) return;
 
     if (event.data && event.data.type === 'WRITE_SECRET' && event.data.secret) {
       const req = indexedDB.open(DB_NAME, 1);

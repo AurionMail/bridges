@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body>
+<script>
+  const WEBMAIL_ORIGIN = '<!-- INSERT WEBMAIL ORIGIN HERE -->';
+  const SSO_ORIGIN = '<!-- INSERT SSO ORIGIN HERE -->';
+  const SAND_ORIGIN = '<!-- INSERT SAND ORIGIN HERE -->';
+
+  function clearCookies() {
+    const cookiesToClear = ['ssotoken', 'token', 'session'];
+    const path = '; path=/';
+    const expires = '; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+
+    cookiesToClear.forEach((name) => {
+      document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT' + path;
+      document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; domain=' + window.location.hostname + path;
+    });
+  }
+
+  function clearLocalStorage() {
+    try {
+      const keysToRemove = [
+        'loginToken',
+        'sessionJWT',
+        'SSO_seed',
+        'username',
+        'Block_hash',
+        'pad'
+      ];
+      keysToRemove.forEach((key) => localStorage.removeItem(key));
+
+    } catch (e) {
+      console.error('Erreur nettoyage localStorage CryptPad :', e);
+    }
+  }
+
+  async function performStorageCleanup() {
+    clearLocalStorage();
+    clearCookies();
+
+    const dbsToClear = ['localforage', 'cp_cache'];
+
+    const deleteDBPromises = dbsToClear.map((dbName) => {
+      return new Promise((resolve) => {
+        const req = indexedDB.deleteDatabase(dbName);
+        req.onsuccess = () => resolve();
+        req.onerror = () => resolve(); // On résout même en cas d'erreur pour ne pas bloquer
+        req.onblocked = () => resolve();
+      });
+    });
+
+    await Promise.all(deleteDBPromises);
+  }
+
+  window.addEventListener('message', (event) => {
+    if (event.origin !== WEBMAIL_ORIGIN && event.origin !== SSO_ORIGIN) return;
+
+    // Secret given PGP plugin to login
+    if (event.data && event.data.type === 'WRITE_SECRET' && event.data.secret) {
+      const callerSource = event.source;
+      const callerOrigin = event.origin;
+      const payload = event.data;
+
+      // 1. Create a hidden iframe pointing to the sand bridge
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = `${SAND_ORIGIN}/bridge-sand.html`; // UPDATE THIS PATH
+      document.body.appendChild(iframe);
+
+      // 2. Listen for the success response from the sand iframe
+      const handleSandMessage = (sandEvent) => {
+        if (sandEvent.origin !== SAND_ORIGIN) return;
+        
+        if (sandEvent.data && sandEvent.data.type === 'SAND_WRITE_SUCCESS') {
+          // Cleanup listener and iframe
+          window.removeEventListener('message', handleSandMessage);
+          document.body.removeChild(iframe);
+
+          // 3. Store ONLY the secret in the main domain's IndexedDB
+          const req = indexedDB.open("AurionAuth", 1);
+          
+          req.onupgradeneeded = (e) => {
+            const db = e.target.result;
+            db.createObjectStore("keys");
+          };
+
+          req.onsuccess = (e) => {
+            const db = e.target.result;
+            const transaction = db.transaction("keys", "readwrite");
+            const store = transaction.objectStore("keys");
+            
+            store.put(payload.secret, "temp_key");
+
+            transaction.oncomplete = () => {
+              // 4. Notify the original caller (SSO/Webmail) that everything is done
+              callerSource.postMessage({ type: 'WRITE_SUCCESS' }, callerOrigin);
+            };
+          };
+        }
+      };
+
+      window.addEventListener('message', handleSandMessage);
+
+      // 5. Once the iframe is loaded, send it the color, server, and mail properties
+      iframe.onload = () => {
+        iframe.contentWindow.postMessage({
+          type: 'WRITE_SAND_DATA',
+          color: payload.color,
+          server: payload.server,
+          mail: payload.mail
+        }, SAND_ORIGIN);
+      };
+    }
+
+
+    if (event.data && event.data.type === 'LOGOUT') {
+      const channel = new BroadcastChannel('aurion-session-bus');
+      let responded = false;
+      const callerSource = event.source;
+      const callerOrigin = event.origin;
+
+      const requestId = Math.random().toString(36).substring(2);
+
+      const handleMessage = (msgEvent) => {
+        if (
+          msgEvent.data &&
+          msgEvent.data.type === 'RESPONSE_LOGOUT_REQUEST' &&
+          msgEvent.data.requestId === requestId
+        ) {
+          responded = true;
+          cleanupAndClose();
+          callerSource.postMessage({ type: 'LOGOUT_SUCCESS' }, callerOrigin);
+        }
+      };
+
+      channel.addEventListener('message', handleMessage);
+
+      channel.postMessage({
+        type: 'LOGOUT_REQUEST',
+        requestId: requestId
+      });
+
+      const timeoutId = setTimeout(async () => {
+        if (!responded) {
+          cleanupAndClose();
+          try {
+            
+            await performStorageCleanup();
+          } catch (err) {
+            console.error('Error when cleaning CryptPad :', err);
+          } finally {
+            callerSource.postMessage({ type: 'LOGOUT_SUCCESS' }, callerOrigin);
+          }
+        }
+      }, 1500);
+
+      function cleanupAndClose() {
+        clearTimeout(timeoutId);
+        channel.removeEventListener('message', handleMessage);
+        channel.close();
+      }
+    }
+
+  });
+</script>
+</body>
+</html>
