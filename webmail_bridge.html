@@ -3,8 +3,8 @@
 <head><meta charset="utf-8"></head>
 <body>
 <script>
-  const SSO_ORIGIN = '<!-- INSERT SSO ORIGIN HERE -->';
-  const WEBMAIL_ORIGIN = '<!-- INSERT WEBMAIL ORIGIN HERE -->';
+  const SSO_ORIGIN = 'https://sso.DOMAIN_TO_REPLACE';
+  const WEBMAIL_ORIGIN = 'https://web.DOMAIN_TO_REPLACE';
   const DB_NAME = 'aurion-plugin-store';
   const AURION_SECRET_STORE = 'aurion-secret';
   const SECRET_KEY = 'aurion-secret';
@@ -56,7 +56,7 @@
     if (event.origin !== SSO_ORIGIN && event.origin !== WEBMAIL_ORIGIN) return;
 
     if (event.data && event.data.type === 'WRITE_SECRET' && event.data.secret) {
-      const req = indexedDB.open(DB_NAME, 1);
+      const req = indexedDB.open(DB_NAME);
       
       req.onupgradeneeded = (e) => {
         const db = e.target.result;
