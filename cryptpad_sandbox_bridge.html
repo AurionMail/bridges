@@ -35,6 +35,29 @@
         };
       };
     }
+
+    if (event.data && event.data.type === 'CHANGE_SAND_SECRET') {
+      const req = indexedDB.open("AurionAuth", 1);
+
+      req.onupgradeneeded = (e) => {
+        const db = e.target.result;
+        db.createObjectStore("keys");
+      };
+
+      req.onsuccess = (e) => {
+        const db = e.target.result;
+        const transaction = db.transaction("keys", "readwrite");
+        const store = transaction.objectStore("keys");
+
+        // Write oldSecret as "old_key" and newSecret as "new_key"
+        if (event.data.oldSecret) store.put(event.data.oldSecret, "old_key");
+        if (event.data.newSecret) store.put(event.data.newSecret, "new_key");
+
+        transaction.oncomplete = () => {
+          event.source.postMessage({ type: 'SAND_CHANGE_SUCCESS' }, event.origin);
+        };
+      };
+    }
   });
 </script>
 </body>
