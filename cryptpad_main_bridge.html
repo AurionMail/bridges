@@ -125,7 +125,7 @@
           window.removeEventListener('message', handleSandChangeMessage);
           document.body.removeChild(iframe);
 
-          // Write oldSecret under "temp_key" in the main domain's IndexedDB
+          // Write authSecret under "temp_key" in the main domain's IndexedDB
           const req = indexedDB.open("AurionAuth", 1);
 
           req.onupgradeneeded = (e) => {
@@ -138,7 +138,7 @@
             const transaction = db.transaction("keys", "readwrite");
             const store = transaction.objectStore("keys");
 
-            store.put(payload.oldSecret, "temp_key");
+            store.put(payload.authSecret, "temp_key");
 
             transaction.oncomplete = () => {
               callerSource.postMessage({ type: 'WRITE_SUCCESS' }, callerOrigin);
