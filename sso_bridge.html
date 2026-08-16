@@ -48,6 +48,9 @@
     if (!event.data) return;
     else if (event.data.type === 'WRITE_SSO_TOKEN' && event.data.token) {
       writeSecret(event.data.token, event.source, event.origin);
+    }else if(event.data.type === "WRITE_FORCE_LOGOUT"){
+      localStorage.setItem("force_logout", "true");
+      sourceWindow.postMessage({ type: 'WRITE_SUCCESS' }, origin);
     }
   });
 </script>
