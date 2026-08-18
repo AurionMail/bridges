@@ -37,8 +37,6 @@
     }
 
     if (event.data && event.data.type === 'CHANGE_SAND_SECRET') {
-      //in localstorage, add changePasswordRequired to true for redirecting later
-      localStorage.setItem('changePasswordRequired', 'true');
       const req = indexedDB.open("AurionAuth", 1);
 
       req.onupgradeneeded = (e) => {
@@ -54,6 +52,7 @@
         // Write oldSecret as "old_key" and newSecret as "new_key"
         if (event.data.oldSecret) store.put(event.data.oldSecret, "old_key");
         if (event.data.newSecret) store.put(event.data.newSecret, "new_key");
+        store.put(true, "changePasswordRequired");
 
         transaction.oncomplete = () => {
           event.source.postMessage({ type: 'SAND_CHANGE_SUCCESS' }, event.origin);
