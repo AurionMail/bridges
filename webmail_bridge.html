@@ -87,7 +87,6 @@
       const requestId = Math.random().toString(36).substring(2);
 
       const handleMessage = (msgEvent) => {
-        // Vérification du type ET de l'ID de requête
         if (
           msgEvent.data && 
           msgEvent.data.type === 'RESPONSE_LOGOUT_REQUEST' && 

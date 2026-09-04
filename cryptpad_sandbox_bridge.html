@@ -6,7 +6,6 @@
   const PAD_ORIGIN = 'https://pad.DOMAIN_TO_REPLACE';
 
   window.addEventListener('message', (event) => {
-    // Security check: only accept messages from your main domain
     if (event.origin !== PAD_ORIGIN) return;
 
     if (event.data && event.data.type === 'WRITE_SAND_DATA') {
