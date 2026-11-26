@@ -29,6 +29,7 @@
         if (event.data.logoutAll) store.put(event.data.logoutAll, "logoutAll");
         if (event.data.treeSecret) store.put(event.data.treeSecret, "treeSecret");
         if (event.data.aurionToken) store.put(event.data.aurionToken, "aurionToken");
+        if (event.data.dangerousTreeSecretStorage) store.put(event.data.dangerousTreeSecretStorage, "dangerousTreeSecretStorage");
 
         transaction.oncomplete = () => {
           // Notify the main bridge that the storage is complete
